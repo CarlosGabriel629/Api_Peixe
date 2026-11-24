@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadastro de Peixes</title>
+<style>
+  :root {
+    --fundo: #eaf4f4;
+    --mar: #0f3d4c;
+    --mar-claro: #2f6f80;
+    --superficie: #ffffff;
+    --linha: #c5dcdf;
+    --acento: #f2a93b;
+    --acento-texto: #3a2600;
+    --erro: #b3261e;
+    --texto: #12303a;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fundo: #0b2630;
+      --mar: #d6ecef;
+      --mar-claro: #8fc3cd;
+      --superficie: #12384a;
+      --linha: #2a5565;
+      --texto: #e3f2f4;
+      --erro: #ff8a80;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--texto);
+    font-family: "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    background: var(--mar);
+    padding: 28px 24px;
+  }
+  header h1 {
+    margin: 0 auto;
+    max-width: 1000px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: .01em;
+    color: #eaf4f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    header { background: #061b23; }
+  }
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  section {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  h2 { margin: 0 0 14px; font-size: 1.15rem; }
+  label { display: block; margin-bottom: 14px; font-size: .92rem; font-weight: 600; }
+  input {
+    display: block; width: 100%; margin-top: 4px; padding: 10px 12px;
+    font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--linha); border-radius: 6px;
+  }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--acento); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer;
+    padding: 11px 16px; border: 0; border-radius: 6px;
+    background: var(--acento); color: var(--acento-texto); width: 100%;
+  }
+  button:disabled { opacity: .6; cursor: wait; }
+  .btn-sec {
+    width: auto; background: transparent; color: var(--mar-claro);
+    border: 1px solid var(--linha); padding: 7px 12px; font-weight: 600;
+  }
+  .topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .topo h2 { margin: 0; }
+  .aviso { min-height: 1.4em; margin: 12px 0 0; font-size: .9rem; }
+  .aviso.erro { color: var(--erro); }
+  .aviso.ok { color: var(--mar-claro); }
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--linha); }
+  th { font-size: .85rem; color: var(--mar-claro); }
+  .vazio { padding: 28px 8px; color: var(--mar-claro); }
+</style>
+</head>
+<body>
+<header><h1>Cadastro de Peixes</h1></header>
+
+<main>
+  <section>
+    <h2>Novo peixe</h2>
+    <form id="form" novalidate>
+      <div id="campos"></div>
+      <button type="submit" id="salvar">Salvar peixe</button>
+    </form>
+    <p class="aviso" id="aviso" role="status"></p>
+  </section>
+
+  <section>
+    <div class="topo">
+      <h2>Peixes cadastrados</h2>
+      <button class="btn-sec" id="atualizar" type="button">Atualizar lista</button>
+    </div>
+    <div class="tabela" id="lista"></div>
+  </section>
+</main>
+
+<script>
+  // 1) Endereço da API. Se este arquivo ficar em src/main/resources/static,
+  //    "/api/peixe" funciona direto. Se abrir o arquivo de fora do Spring,
+  //    troque por "http://localhost:8080/api/peixe" e adicione @CrossOrigin no controller.
+  const API_URL = "/api/peixe";
+
+  // 2) Campos do formulário. Ajuste "key" para ser igual aos atributos da sua classe Peixe.
+  const CAMPOS = [
+    { key: "nomePeixe", label: "Nome do peixe", type: "text" },
+    { key: "especie",   label: "Espécie",       type: "text" },
+    { key: "lago",      label: "Lago",          type: "text" },
+    { key: "pesso",     label: "Peso (kg)",     type: "number", step: "1" }
+  ];
+
+  const form = document.getElementById("form");
+  const camposEl = document.getElementById("campos");
+  const listaEl = document.getElementById("lista");
+  const avisoEl = document.getElementById("aviso");
+  const salvarBtn = document.getElementById("salvar");
+
+  camposEl.innerHTML = CAMPOS.map(c =>
+    `<label>${c.label}<input name="${c.key}" type="${c.type}" ${c.step ? `step="${c.step}"` : ""} required></label>`
+  ).join("");
+
+  function aviso(msg, tipo) {
+    avisoEl.textContent = msg;
+    avisoEl.className = "aviso " + (tipo || "");
+  }
+
+  function esc(v) {
+    return String(v ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  }
+
+  function desenhar(peixes) {
+    if (!peixes.length) {
+      listaEl.innerHTML = '<p class="vazio">Nenhum peixe cadastrado ainda. Preencha o formulário para adicionar o primeiro.</p>';
+      return;
+    }
+    const cab = CAMPOS.map(c => `<th>${c.label}</th>`).join("");
+    const linhas = peixes.map(p =>
+      `<tr>${CAMPOS.map(c => `<td>${esc(p[c.key])}</td>`).join("")}</tr>`
+    ).join("");
+    listaEl.innerHTML = `<table><thead><tr>${cab}</tr></thead><tbody>${linhas}</tbody></table>`;
+  }
+
+  async function carregar() {
+    try {
+      const r = await fetch(API_URL);
+      if (!r.ok) throw new Error("Erro " + r.status);
+      desenhar(await r.json());
+    } catch (e) {
+      listaEl.innerHTML = "";
+      aviso("Não foi possível carregar a lista. Confira se a API está rodando e se API_URL está correto.", "erro");
+    }
+  }
+
+  form.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    if (!form.reportValidity()) return;
+    const dados = {};
+    CAMPOS.forEach(c => {
+      const v = form.elements[c.key].value;
+      dados[c.key] = c.type === "number" ? Number(v) : v.trim();
+    });
+    salvarBtn.disabled = true;
+    aviso("Salvando…");
+    try {
+      const r = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dados)
+      });
+      if (!r.ok) throw new Error("Erro " + r.status);
+      form.reset();
+      aviso("Peixe salvo.", "ok");
+      carregar();
+    } catch (e) {
+      aviso("Não foi possível salvar. Verifique os campos e a API.", "erro");
+    } finally {
+      salvarBtn.disabled = false;
+    }
+  });
+
+  document.getElementById("atualizar").addEventListener("click", carregar);
+  carregar();
+</script>
+</body>
+</html>
